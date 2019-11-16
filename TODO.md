@@ -1,20 +1,6 @@
-Document the suffixes `.exists` and `.has_data`.
-
-Chase down the bug P. Simmons reported. Mail link:
-https://mail.google.com/mail/u/0/#inbox/FMfcgxwCgVcVJLhmvssXVPdQNXtHNhhS
-
-The following drivers have been checked under Python 3:
-
-```
-vantage.py
-wmr100.py
-```
-
-In general, we should expect the user to run the command `python`, whatever that might
-point to. On some systems, it will be Python 2, others Python 3.
-
-Nevertheless, we should probably include a section on how to run explicitly under 
-Python 2 vs 3.
+### Other
+Really have to find some way of making `accumulateLeaves()` and friends accessible
+from `weeutil.weeutil`.
 
 Update macos.htm for how to install using Python 3.
 

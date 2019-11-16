@@ -1,13 +1,27 @@
 #
-#    Copyright (c) 2018 Tom Keffer <tkeffer@gmail.com>
+#    Copyright (c) 2018-2019 Tom Keffer <tkeffer@gmail.com>
 #
 #    See the file LICENSE.txt for your full rights.
 #
 """Test module weewx.wxformulas"""
 
+import os
+import time
 import unittest
 
+try:
+    # Python 3 --- mock is included in unittest
+    from unittest import mock
+except ImportError:
+    # Python 2 --- must have mock installed
+    import mock
+
+import weewx
 import weewx.wxformulas
+import weewx.units
+
+os.environ['TZ'] = 'America/Los_Angeles'
+time.tzset()
 
 
 class WXFormulasTest(unittest.TestCase):

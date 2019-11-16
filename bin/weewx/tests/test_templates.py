@@ -13,19 +13,34 @@ cd ~/git/weewx
 PYTHONPATH="./examples:./bin" python bin/weewx/tests/test_templates.py
 """
 
-from __future__ import with_statement
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import with_statement
+
 import locale
+import logging
 import os.path
 import shutil
 import sys
-import syslog
 import time
 import unittest
 
 import configobj
 from six.moves import map
+
+import gen_fake_data
+import weeutil.logger
+import weeutil.weeutil
+import weewx
+import weewx.reportengine
+import weewx.station
+import weewx.units
+
+weewx.debug = 1
+
+log = logging.getLogger(__name__)
+# Set up logging using the defaults.
+weeutil.logger.setup('test_templates', {})
 
 os.environ['TZ'] = 'America/Los_Angeles'
 time.tzset()
@@ -36,18 +51,13 @@ time.tzset()
 locale.setlocale(locale.LC_ALL, '')
 
 
-import weewx.reportengine
-import weewx.station
-import weeutil.weeutil
-
-import gen_fake_data  # @UnresolvedImport
-
 # Find the configuration file. It's assumed to be in the same directory as me:
 config_path = os.path.join(os.path.dirname(__file__), "testgen.conf")
 cwd = None
 
+
 # We will be testing the ability to extend the unit system, so set that up first:
-class ExtraUnits(dict):
+class ExtraUnits(object):
     def __getitem__(self, obs_type):
         if obs_type.endswith('Temp'):
             # Anything that ends with "Temp" is assumed to be in group_temperature
@@ -56,11 +66,13 @@ class ExtraUnits(dict):
             # Anything that starts with "current" is in group_amperage:
             return "group_amperage"
         else:
-            # Otherwise, consult the underlying dictionary:
-            return dict.__getitem__(self, obs_type)
- 
+            raise KeyError(obs_type)
+
+    def __contains__(self, obs_type):
+        return obs_type.endswith('Temp') or obs_type.startswith('current')
+
+
 extra_units = ExtraUnits()
-import weewx.units
 weewx.units.obs_group_dict.extend(extra_units)
 
 # Add the new group group_amperage to the standard unit systems:
@@ -77,11 +89,6 @@ class Common(unittest.TestCase):
         global config_path
         global cwd
         
-        weewx.debug = 1
-
-        syslog.openlog('test_templates', syslog.LOG_CONS)
-        syslog.setlogmask(syslog.LOG_UPTO(syslog.LOG_DEBUG))
-
         # Save and set the current working directory in case some service changes it.
         if not cwd:
             cwd = os.getcwd()
@@ -125,7 +132,7 @@ class Common(unittest.TestCase):
         
         # First run the engine without a current record.
         self.run_engine(stn_info, None, testtime_ts)
-        with weewx.manager.open_manager_with_config(self.config_dict, 'wx_binding')  as manager:
+        with weewx.manager.open_manager_with_config(self.config_dict, 'wx_binding') as manager:
             record = manager.getRecord(testtime_ts)
         # Now run the engine again, but this time with a current record:
         self.run_engine(stn_info, record, testtime_ts)

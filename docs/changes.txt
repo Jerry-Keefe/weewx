@@ -3,14 +3,33 @@ weewx change history
 
 4.0.0 MM/DD/YYYY
 
-Ported to Python 3. WeeWX should now run under Python 2.7, 3.3, and
-greater.
+Ported to Python 3. WeeWX should now run under Python 3.3 and greater, as
+well as Python 2.7. Support for Python 2.5 and 2.6 has been dropped.
+
+New facility for creating new user-defined derived types. See the
+Wiki article https://github.com/weewx/weewx/wiki/WeeWX-V4-user-defined-types
+
+WeeWX now uses the Python 'logging' facility. This means log,
+formats, and other things can now be customized. Fixes issue #353.
+
+Support for the Vantage LOOP2 packet format. Fixes issue #374.
+
+Strings appearing in the data stream no longer cause a TypeError
+if they can be converted to a number.
+
+Strings can now be accumulated and extracted in the accumulators, making
+it possible to include them in the database schemas.
+
+The utility wee_reports now loads services, allowing it to use user-supplied
+extensions. Fixes issue #95.
+
+New, more flexible, way of specifying schemas for the daily summaries.
+For the most part, the old way is backwards compatible. See the Upgrading
+Guide for the exception.
 
 The package MySQL-python, which we used previously, is not available
 for Python 3. Ported  the MySQL code to use the package mysqlclient
 as an alternative.
-
-Introduce a uniform logging shim. Fixes issue #353.
 
 The default for WOW no longer throttles posting frequency (the default
 used to be no more than once every 15 minutes).
@@ -23,7 +42,12 @@ Added new tag $python_version.
 
 Ported to Python2-PyMySQL package on OpenSUSE.
 
-Added new aggregation type 'first' (similar to 'last').
+Added new aggregation types 'first' (similar to 'last'), 'diff' (the
+difference between last and first value in the aggregation interval),
+and 'tderiv' (the difference divided by the time difference).
+
+Created new unit group 'group_energy2', defined as watt-seconds. Useful for
+high resolution energy monitors.
 
 An observation type known to the system, but not in a record, will
 now return a proper ValueTuple, rather than UnknownType.
@@ -40,10 +64,36 @@ Ported OS uptime to OpenBSD. Fixes issue #428. Thanks to user Jeff Ross!
 Catch SSL certificate errors in uploaders. Retry after an hour. Fixes
 issue #413.
 
-Wunderfixer has been ported to the new WU API. This API requires an
-API key, which you can get from the WU. Put it in weewx.conf.
-Unfortunately, WU is very unreliable whether reposts "stick".
-Fixes issue #414
+Wunderfixer has been ported to the new WU API. This API requires an API key,
+which you can get from the WU. Put it in weewx.conf. Unfortunately, WU is
+very unreliable whether reposts "stick". Fixes issues #414 and #445.
+
+Wee_import can now import Weather Display monthly log files.
+
+Fixed problem where sub-sections DegreeDays and Trend were located under the
+wrong weewx.conf section. Fixes issue #432. Thanks to user mph for spotting
+this!
+
+Added new parameters to the Weather Underground uploader. Fixes issue #435.
+
+Added new air quality types AqPM2_5 and AqPM10 to the unit system. Added
+new unit microgram_per_meter_cubed. Added new unit group, group_concentration.
+
+Plist for the Mac launcher now includes a log file for stderr.
+
+Night-day transition in plots now uses shortest travel distance around
+color wheel to minimize extra colors. Fixes issue #457. Thanks to user
+Alex Edwards!
+
+Fixed bug that causes plots to fail when both min and max are zero.
+Fixes issue #463.
+
+Fixed problem with sqlite driver that can lead to memory growth.
+See PR #467. Thanks to user Rich Bell!
+
+Fixed bug that caused windrun to be calculated wrongly under METRICWX
+unit system. Fixes issue #452.
+
 
 
 3.9.2 07/14/2019
@@ -117,9 +167,11 @@ zero for interval.
 Correct rounding problems for rain and other types when posting to CWOP.
 Fixes issue #431. Thanks to user ls4096!
 
-Fixed problem where sub-sections DegreeDays and Trend were located under the
-wrong weewx.conf section. Fixes issue #432. Thanks to user mph for spotting
-this!
+Fixed problem that can cause an exception with restx services that do not use
+the database manager. See commit 459ccb1.
+
+Sending a SIGTERM signal to weewxd now causes it to exit with status
+128 + signal#. PR #442. Thanks to user sshambar!
 
 
 3.9.1 02/06/2019

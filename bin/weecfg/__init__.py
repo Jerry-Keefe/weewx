@@ -23,6 +23,7 @@ import configobj
 
 import weeutil.weeutil
 import weeutil.config
+import weeutil.logger
 
 major_comment_block = ["", "##############################################################################", ""]
 
@@ -147,7 +148,7 @@ def find_file(file_path=None, args=None, locations=DEFAULT_LOCATIONS,
 
 
 def read_config(config_path, args=None, locations=DEFAULT_LOCATIONS,
-                file_name='weewx.conf'):
+                file_name='weewx.conf', interpolation='ConfigParser'):
     """Read the specified configuration file, return an instance of ConfigObj
     with the file contents. If no file is specified, look in the standard
     locations for weewx.conf. Returns the filename of the actual configuration
@@ -169,7 +170,9 @@ def read_config(config_path, args=None, locations=DEFAULT_LOCATIONS,
     config_path = find_file(config_path, args,
                             locations=locations, file_name=file_name)
     # Now open it up and parse it.
-    config_dict = configobj.ConfigObj(config_path, file_error=True,
+    config_dict = configobj.ConfigObj(config_path,
+                                      interpolation=interpolation,
+                                      file_error=True,
                                       encoding='utf-8',
                                       default_encoding='utf-8')
     return config_path, config_dict
@@ -739,7 +742,7 @@ def update_to_v30(config_dict):
                 # The name of the table within the database
                 table_name = archive
                 # The manager handles aggregation of data for historical summaries
-                manager = weewx.wxmanager.WXDaySummaryManager
+                manager = weewx.manager.DaySummaryManager
                 # The schema defines the structure of the database.
                 # It is *only* used when the database is created.
                 schema = schemas.wview.schema
@@ -1078,15 +1081,20 @@ def update_to_v39(config_dict):
 def update_to_v40(config_dict):
     """Update a configuration file to V4.0
 
+    - Add option loop_request for Vantage users.
     - Fix problems with DegreeDays and Trend in weewx.conf
     - Add new option growing_base
     - Add new option WU api_key
     """
 
-    major, minor = get_version_info(config_dict)
+    # No need to check for the version of weewx for these changes.
 
-    if major + minor >= '400':
-        return
+    if 'Vantage' in config_dict \
+            and 'loop_request' not in config_dict['Vantage']:
+        config_dict['Vantage']['loop_request'] = 1
+        config_dict['Vantage'].comments['loop_request'] = \
+            ['', 'The type of LOOP packet to request: 1 = LOOP1; 2 = LOOP2; 3 = both']
+        reorder_scalars(config_dict['Vantage'].scalars, 'loop_request', 'iss_id')
 
     if 'StdReport' in config_dict \
             and 'Defaults' in config_dict['StdReport'] \
@@ -1134,7 +1142,32 @@ def update_to_v40(config_dict):
         config_dict['StdRESTful']['Wunderground'].comments['api_key'] = \
             ["", "If you plan on using wunderfixer, set the following", "to your API key:"]
 
-    config_dict['version'] = '4.0.0'
+    # This section will inject a [Logging] section. Leave it commented out for now,
+    # until we gain more experience with it.
+
+    # if 'Logging' not in config_dict:
+    #     logging_dict = configobj.ConfigObj(StringIO(weeutil.logger.LOGGING_STR), interpolation=False)
+    #
+    #     # Delete some not needed (and dangerous) entries
+    #     try:
+    #         del logging_dict['Logging']['version']
+    #         del logging_dict['Logging']['disable_existing_loggers']
+    #     except KeyError:
+    #         pass
+    #
+    #     config_dict.merge(logging_dict)
+    #
+    #     # Move the new section to just before [Engine]
+    #     reorder_sections(config_dict, 'Logging', 'Engine')
+    #     config_dict.comments['Logging'] = \
+    #         major_comment_block + \
+    #         ['#   This section customizes logging', '']
+
+    # Make sure the version number is at least 4.0
+    major, minor = get_version_info(config_dict)
+
+    if major + minor < '400':
+        config_dict['version'] = '4.0.0'
 
 
 def update_units(config_dict, unit_system_name, logger=None, debug=False):

@@ -7,15 +7,18 @@
 
 # Python imports
 from __future__ import absolute_import
-import syslog
+import logging
 
 # weewx imports
 import weeutil.weeutil
 import weewx.units
 
-#==============================================================================
+log = logging.getLogger(__name__)
+
+
+# ==============================================================================
 #                    Class QC
-#==============================================================================
+# ==============================================================================
 
 class QC(object):
     """Class to apply quality checks to a record."""
@@ -31,8 +34,7 @@ class QC(object):
         try:
             mm_dict = config_dict['StdQC']['MinMax']
         except KeyError:
-            syslog.syslog(syslog.LOG_NOTICE,
-                          self.parent + ": No QC information in config file.")
+            log.warning("No QC information in config file.")
             return
 
         self.min_max_dict = {}
@@ -58,10 +60,8 @@ class QC(object):
         for obs_type in self.min_max_dict:
             if obs_type in data_dict and data_dict[obs_type] is not None:
                 if not self.min_max_dict[obs_type][0] <= data_dict[obs_type] <= self.min_max_dict[obs_type][1]:
-                    syslog.syslog(syslog.LOG_NOTICE, "%s: %s %s value '%s' %s outside limits (%s, %s)" %
-                                  (self.parent,
-                                   weeutil.weeutil.timestamp_to_string(data_dict['dateTime']),
-                                   data_type, obs_type, data_dict[obs_type],
-                                   self.min_max_dict[obs_type][0], self.min_max_dict[obs_type][1]))
+                    log.warning("%s %s value '%s' %s outside limits (%s, %s)",
+                                weeutil.weeutil.timestamp_to_string(data_dict['dateTime']),
+                                data_type, obs_type, data_dict[obs_type],
+                                self.min_max_dict[obs_type][0], self.min_max_dict[obs_type][1])
                     data_dict[obs_type] = None
-

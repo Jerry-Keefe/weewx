@@ -84,6 +84,68 @@ Version: 4.0
 
         <h1 id="introduction">Introduction</h1>
 
+        <h2>Overall system architecture</h2>
+
+        <p>
+            Below is a brief overview of the WeeWX system architecture, which is covered in much more detail in the
+            rest of this document.
+        </p>
+
+        <ul>
+            <li>A WeeWX process normally handles the monitoring of one station &mdash; <i>e.g.</i> a weather station.
+                 The process is configured with a <span class="code">weewx.conf</span> file.
+            </li>
+        
+            <li>Multiple WeeWX processes may be run simultaneously to monitor multiple stations, using separate
+                <span class="code">weewx.conf</span> files to refer to different driver and databases, <i>etc</i>.
+                More advanced WeeWX processes might create reports across multiple other WeeWX station databases,
+                <i>e.g.</i> as a dashboard.
+            </li>
+
+            <li>A WeeWX process has at most one ‘driver’ to communicate with the station hardware and receive ‘high
+                resolution’ (<i>i.e.</i> every few seconds) measurement data in the form of LOOP packets.  The driver is
+                single-threaded and blocking, so no more than one driver can run in a WeeWX process.
+            </li>
+
+            <li>LOOP packets may contain arbitrary data from the station/driver in the form of a Python dictionary.
+                LOOP packet fields should conform to defined WeeWX measurement units and measurement groups so they can
+                then be summarised automatically (<i>e.g.</i> average of temperature, or sum of rainfall) by WeeWX
+                over a set interval period (<i>e.g.</i> 5 minutes) into ‘archive records’.
+            </li>
+
+            <li>A number of services may be configured within the WeeWX process to operate on the LOOP, archive record
+                and database data &mdash; triggering when new data or timed events arise.  Typically these services run
+                at 5 minute intervals.  Standard services include:
+
+                <ul>
+                    <li><span class="code">StdArchive</span> &mdash; automatically create a database based on a user
+                        ‘schema’ (a database table definition held as a python array in the driver or service) then
+                        write archive records as they arise.  Only archive record fields which match the schema will be
+                        written to the database.
+                    </li>
+
+                    <li><span class="code">StdReport</span> &mdash; generate reports based on database archive records,
+                        stored by <span class="code">StdArchive</span>.
+                    </li>
+                </ul>
+            </li>
+
+            <li>In addition, some services may create their own archive records and add them to the stream
+                of archive data, where they are treated like any other data.  Still others may save to their own
+                database.
+            </li>
+
+            <li>WeeWX extensions may consist of one or more drivers, services, databases and/or skin code.
+                However, only one station and associated driver can be run at a time, though numerous services 
+                may be run in a single process.
+            </li>
+        </ul>
+
+        <p>
+            For more details, see the section <a href="#Data_architecture"><em>Data architecure</em></a> below.
+        </p>
+
+
         <h2>Where to put customizations</h2>
 
         <p>
@@ -155,7 +217,7 @@ Version: 4.0
         </p>
 
 
-        <h2>Data architecture</h2>
+        <h2 id="Data_architecture">Data architecture</h2>
 
         <p>
             WeeWX is data-driven. When the sensors spit out some data, WeeWX does something. The 'something' might be to
@@ -2436,18 +2498,6 @@ or in foobar units: $day.barometer.min.foobar
                 <td>The maximum barometric pressure over the last immediate 2 weeks.
                 </td>
             </tr>
-            <tr>
-                <td class="first_col code">$month_delta=<em>months</em></td>
-                <td class="code">$span($month_delta=3).outTemp.min</td>
-                <td>The minimum temperture over the last immediate 3 months (90 days).
-                </td>
-            </tr>
-            <tr>
-                <td class="first_col code">$year_delta=<em>years</em></td>
-                <td class="code">$span($year_delta=1).windchill.min</td>
-                <td>The minimum wind chill over the last immediate 1 year (365 days).
-                </td>
-            </tr>
             </tbody>
         </table>
 
@@ -2838,11 +2888,16 @@ Sunrise, sunset: $almanac.sunrise $almanac.sunset
         </p>
         <pre class="tty">$almanac(pressure=0, horizon=-6).sun(use_center=1).rise</pre>
         <p>The general syntax is:</p>
-        <pre class="tty">$almanac(pressure=<em>pressure</em>, horizon=<em>horizon</em>,
-         temperature=<em>temperature_C</em>).<em>heavenly_body</em>(use_center=[01]).<em>attribute</em>
+        <pre class="tty">$almanac(almanac_time=<em>time</em>,            ## Unix epoch time
+         lat=<em>latitude</em>, lon=<em>longitude</em>,  ## degrees
+         altitude=<em>altitude</em>,            ## meters
+         pressure=<em>pressure</em>,            ## mbars
+         horizon=<em>horizon</em>,              ## degrees
+         temperature=<em>temperature_C</em>     ## degrees C
+       ).<em>heavenly_body</em>(use_center=[01]).<em>attribute</em>
       </pre>
-        <p>As you can see, in addition to the horizon angle, you can also override atmospheric pressure and temperature
-            (degrees Celsius).
+        <p>
+            As you can see, many other properties can be overridden besides pressure and the horizon angle.
         </p>
 
         <p>
@@ -3458,17 +3513,17 @@ class MyStats(SearchList):                                                   # 1
     ...
     image_width = 500
     image_height = 180
-    image_background_color = 0xf5f5f5
+    image_background_color = #f5f5f5
 
-    chart_background_color = 0xd8d8d8
-    chart_gridline_color = 0xa0a0a0
+    chart_background_color = #d8d8d8
+    chart_gridline_color = #a0a0a0
     ...</pre>
         <p>
             The options right under the section name <span class="code">[ImageGenerator]</span> will apply to
             <em>all</em> plots, unless overridden in subsections. So, unless otherwise changed, all plots will be 500
-            pixels in width, 180 pixels in height, and will have an RGB background color of 0xf5f5f5, a very light gray
-            (HTML color "WhiteSmoke"). The chart itself will have a background color of 0xd8d8d8 (a little darker gray),
-            and the gridlines will be 0xa0a0a0 (still darker). The other options farther down (not shown) will also
+            pixels in width, 180 pixels in height, and will have an RGB background color of #f5f5f5, a very light gray
+            (HTML color "WhiteSmoke"). The chart itself will have a background color of #d8d8d8 (a little darker gray),
+            and the gridlines will be #a0a0a0 (still darker). The other options farther down (not shown) will also
             apply to all plots.
         </p>
 
@@ -3747,7 +3802,7 @@ class MyStats(SearchList):                                                   # 1
         # The name of the table within the database
         table_name = archive
         # The class to manage the database
-        manager = weewx.wxmanager.WXDaySummaryManager
+        manager = weewx.wxmanager.DaySummaryManager
         # The schema defines to structure of the database contents
         schema = schemas.wview.schema
 
@@ -3757,7 +3812,7 @@ class MyStats(SearchList):                                                   # 1
         # The name of the table within the database
         table_name = archive
         # The class to manage the database
-        manager = weewx.wxmanager.WXDaySummaryManager
+        manager = weewx.wxmanager.DaySummaryManager
         # The schema defines to structure of the database contents
         schema = schemas.wview.schema</span>
 
@@ -4548,35 +4603,28 @@ class AddElectricity(StdService):
                     <strong>Extend the existing schema with the new type.</strong> The schema that comes with WeeWX is
                     the same as what wview uses. It's located in the file <span class="code">schemas/wview.py</span>
                     &mdash; take a look at it now. We could just modify it <em>in situ</em>, but that would run the risk
-                    of confusing the two versions. Alternatively, we could copy the file over to a new location, and
+                    of confusing the two versions. Besides, our changes would get lost at the next upgrade.
+                    Alternatively, we could copy the file over to a new location, and
                     then modify that. But, because our change is just a simple addition, we're going to import the wview
-                    schema and just add on our new type.
+                    schema, then just add on our new type.
                 </p>
-                <p>For this example, we are going to add the new type <span class="code">electricity</span>. Add the
-                    following code to the bottom of a file:
-                </p>
-                <pre class="tty">import schemas.wview
-schema_with_electricity = schemas.wview.schema + [('electricity', 'REAL')]</pre>
                 <p>
-                    This creates a new schema with the name <span
-                    class="code">user.electricity.schema_with_electricity</span>, that is just like the old one, except
-                    it has a new type <span class="code">electricity</span> tacked on to the end.
+                    For this example, we are going to add a few lines of code to the bottom of the file
+                    <span class="code">user/electricity.py</span>:
                 </p>
-                <p>Now, where do we put this bit of code? Really, it can be put in any file that is guaranteed to run
-                    before we try and store our new type. With this in mind, there are two obvious choices:
+                <pre class="tty">electricity_schema = {
+    'table': schemas.wview.table + [('electricity', 'REAL')],
+    'day_summaries': schemas.wview.day_summaries + [('electricity', 'SCALAR')
+}
+</pre>
+                <p>
+                    There are two parts to a WeeWX schema: one for the main, archive table, and another for the
+                    daily summaries. This adds on a new observation <span class="code">electricity</span>, of
+                    type <span class="code">REAL</span>, to the existing wview schema for the archive table.
+                    In a similar manner, we add a new daily summary for <span class="code">electricity</span>,
+                    a <span class="code">SCALAR</span> value, on to the end of the existing daily summaries for the
+                    wview schema.
                 </p>
-                <ol type="a">
-                    <li>Add it to the bottom of <span class="code">user/extensions.py</span>. This is a special file,
-                        provided by WeeWX, which is guaranteed to run before the engine's main loop. It's a good place
-                        to add types that already exist in the archive records (an example would be <span class="code">humidex</span>),
-                        but don't yet exist in the database schema.
-                    </li>
-                    <li>If you've been following the example, <a href="#Adding_2nd_source"><em>Adding a second data source</em></a>, then you can just simply add the code to the bottom of the file you
-                        already have, <span class="code">user/electricity.py</span>. This way, it will run before any
-                        use of the new type. It has the added advantage that it keeps all "electricity" related
-                        modifications in one place, making it easy to package up your changes as a new WeeWX extension.
-                    </li>
-                </ol>
             <li>
                 <p>
                     <strong>Modify <span class="code">wx_binding</span>.</strong> When it creates the new, modified
@@ -4584,26 +4632,16 @@ schema_with_electricity = schemas.wview.schema + [('electricity', 'REAL')]</pre>
                     old, wview schema. You do this by changing the option <span class="code">schema</span> in section
                     <span class="code">[DataBindings]</span> in <span class="code">weewx.conf</span>.
                 </p>
-                <p> If you made the code additions in step 1 in file <span class="code">user/extensions.py</span>, then
-                    it will look like this when you're done:
+                <p>
+                    The <span class="code">[DataBindings]</span> section now looks like this:
                 </p>
 
                 <pre class="tty">[DataBindings]
     [[wx_binding]]
         database = archive_sqlite
         table_name = archive
-        manager = weewx.wxmanager.WXDaySummaryManager
-        <span class="highlight">schema = user.extensions.schema_with_electricity</span></pre>
-
-                <p>If you used <span class="code">user/electricity.py</span>, then it will look like this:
-                </p>
-
-                <pre class="tty">[DataBindings]
-    [[wx_binding]]
-        database = archive_sqlite
-        table_name = archive
-        manager = weewx.wxmanager.WXDaySummaryManager
-        <span class="highlight">schema = user.electricity.schema_with_electricity</span></pre>
+        manager = weewx.wxmanager.DaySummaryManager
+        <span class="highlight">schema = user.electricity.electricity_schema</span></pre>
             </li>
 
             <li>
@@ -4834,11 +4872,14 @@ class AddElectricity(StdService):
         </p>
         <p>
             We assume we have a new observation type, <span class='code'>force</span>, that we are measuring over time,
-            for a service named <span class='code'>
+            for a service named <span class="code">Rocket</span>, located in <span class='code'>
         user/rocket.py</span>. We will create a new unit group, <span class='code'>group_force</span>, and new units,
             <span class='code'>newton</span> and <span class='code'>pound</span>. Our new observation, <span
             class='code'>force</span>, will belong to <span class='code'>group_force</span>, and will be measured in
             units of <span class='code'>newton</span> or <span class='code'>pound</span>.
+        </p>
+        <p>
+            To make this work, we need to add the following to <span class="code">user/rocket.py</span>.
         </p>
         <ol>
             <li>As before, we start by specifying what group our new observation type belongs to:
@@ -4869,12 +4910,9 @@ weewx.units.conversionDict['pound']  = {'newton': lambda x : x * 4.44822}
 
             </li>
         </ol>
-        <p>As with the previous example of <span class='code'>group_energy</span>, the last step is to extend the <span
-            class='code'>
-        weewx.units.obs_group_dict</span> dictionary so that these new units can be used by our service. We do this by
-            adding the Python code from steps 1 - 4 into our new services file <span
-                class='code'>user/rocket.py</span>, at the head of that file and just after the last import statement
-            (as in the previous example).
+        <p>
+            Now, when the service <span class="code">Rocket</span> gets loaded, these lines of code will get
+            executed, adding the necessary unit extensions to WeeWX.
         </p>
 
         <h2>Using the new units</h2>
@@ -5826,20 +5864,20 @@ growing_base = 50.0, degree_F</pre>
         <p class="config_option">image_background_color</p>
 
         <p>
-            The background color of the whole image. Optional. Default is <span class='code'>0xf5f5f5</span>
+            The background color of the whole image. Optional. Default is <span class='code'>#f5f5f5</span>
             ("SmokeGray")
         </p>
 
         <p class="config_option">chart_background_color</p>
 
         <p>
-            The background color of the chart itself. Optional. Default is <span class='code'>0xd8d8d8</span>.
+            The background color of the chart itself. Optional. Default is <span class='code'>#d8d8d8</span>.
         </p>
 
         <p class="config_option">chart_gridline_color</p>
 
         <p>
-            The color of the chart grid lines. Optional. Default is <span class='code'>0xa0a0a0</span>
+            The color of the chart grid lines. Optional. Default is <span class='code'>#a0a0a0</span>
         </p>
 
         <div class="image image-right" style="clear: right">
@@ -5875,20 +5913,20 @@ growing_base = 50.0, degree_F</pre>
         <p class="config_option">daynight_day_color</p>
 
         <p>
-            The color to be used for the daylight band. Optional. Default is <span class="code">0xffffff</span>.
+            The color to be used for the daylight band. Optional. Default is <span class="code">#ffffff</span>.
         </p>
 
         <p class="config_option">daynight_night_color</p>
 
         <p>
-            The color to be used for the nighttime band. Optional. Default is <span class="code">0xf0f0f0</span>, a dark
+            The color to be used for the nighttime band. Optional. Default is <span class="code">#f0f0f0</span>, a dark
             gray.
         </p>
 
         <p class="config_option">daynight_edge_color</p>
 
         <p>
-            The color to be used in the transition zone between night and day. Optional. Default is <span class="code">0xefefef</span>,
+            The color to be used in the transition zone between night and day. Optional. Default is <span class="code">#efefef</span>,
             a mid-gray.
         </p>
 
@@ -6097,7 +6135,7 @@ growing_base = 50.0, degree_F</pre>
         <p>
             Each chart line is drawn in a different color. This option is a list of those colors. If the number of lines
             exceeds the length of the list, then the colors wrap around to the beginning of the list. Optional. In the case of bar
-            charts, this is the color of the outline of the bar. Default is <span class="code">0xff0000, 0x00ff00, 0x0000ff</span>.
+            charts, this is the color of the outline of the bar. Default is <span class="code">#0000ff, #00ff00, #ff0000</span>.
             <br/>
             <br/>
             Individual line color can be overridden by using option <span class="code">color</span>.
@@ -6131,9 +6169,16 @@ growing_base = 50.0, degree_F</pre>
         <p>
             The default is to plot every data point, but this is probably not a good idea for any plot longer than a
             day. By setting this option, you can <em>aggregate</em> data by a set time interval. Available aggregation
-            types include <span class="code">avg</span>, <span class="code">sum</span>, <span class="code">max</span>,
-            <span class="code">min</span>, <span class="code">count</span>, <span class="code">last</span>, and <span
-            class="code">cumulative</span>.
+            types include
+            <span class="code">avg</span>,
+            <span class="code">count</span>,
+            <span class="code">cumulative</span>,
+            <span class="code">diff</span>,
+            <span class="code">last</span>,
+            <span class="code">max</span>,
+            <span class="code">min</span>,
+            <span class="code">sum</span>, and
+            <span class="code">tderiv</span>.
         </p>
 
         <p class="config_option">aggregate_interval</p>
@@ -6643,6 +6688,15 @@ growing_base = 50.0, degree_F</pre>
                 </td>
             </tr>
             <tr>
+                <td class="first_col code">diff</td>
+                <td>The difference between the last and first value in the aggregation period.
+                </td>
+            </tr>
+            <tr>
+                <td class="first_col code">exists</td>
+                <td>Returns <span class="code">True</span> if the observation type exists in the database.</td>
+            </tr>
+            <tr>
                 <td class="first_col code">first</td>
                 <td>The first value in the aggregation period.</td>
             </tr>
@@ -6655,6 +6709,11 @@ growing_base = 50.0, degree_F</pre>
                 <td class="first_col code">gustdir</td>
                 <td>The direction of the max gust in the aggregation period.
                 </td>
+            </tr>
+            <tr>
+                <td class="first_col code">has_data</td>
+                <td>Returns <span class="code">True</span> if the observation type exists in the database
+                    and is non-null.</td>
             </tr>
             <tr>
                 <td class="first_col code">last</td>
@@ -6773,6 +6832,13 @@ growing_base = 50.0, degree_F</pre>
                 </td>
             </tr>
             <tr>
+                <td class="first_col code">tderiv</td>
+                <td>
+                    The time derivative between the last and first value in the aggregation period. This is
+                    the difference in value divided by the difference in time.
+                </td>
+            </tr>
+            <tr>
                 <td class="first_col code">vecavg</td>
                 <td>The vector average speed in the aggregation period.</td>
             </tr>
@@ -6851,10 +6917,17 @@ growing_base = 50.0, degree_F</pre>
                 <td>amp</td>
             </tr>
             <tr>
+                <td class="first_col">group_concentration</td>
+                <td>AqPM2_5<br/>AqPM10</td>
+                <td>microgram_per_meter_cubed</td>
+                <td>microgram_per_meter_cubed</td>
+                <td>microgram_per_meter_cubed</td>
+                <td>microgram_per_meter_cubed</td>
+            </tr>
+            <tr>
                 <td class="first_col">group_data</td>
                 <td></td>
-                <td>byte<br/> bit
-                </td>
+                <td>byte<br/> bit</td>
                 <td>byte</td>
                 <td>byte</td>
                 <td>byte</td>
@@ -6863,16 +6936,14 @@ growing_base = 50.0, degree_F</pre>
                 <td class="first_col">group_degree_day</td>
                 <td>cooldeg<br/> heatdeg<br/> growdeg
                 </td>
-                <td>degree_F_day<br/> degree_C_day
-                </td>
+                <td>degree_F_day<br/> degree_C_day</td>
                 <td>degree_F_day</td>
                 <td>degree_C_day</td>
                 <td>degree_C_day</td>
             </tr>
             <tr>
                 <td class="first_col">group_direction</td>
-                <td>gustdir <br/> vecdir <br/> windDir <br/> windGustDir
-                </td>
+                <td>gustdir <br/> vecdir <br/> windDir <br/> windGustDir</td>
                 <td>degree_compass</td>
                 <td>degree_compass</td>
                 <td>degree_compass</td>
@@ -6881,8 +6952,7 @@ growing_base = 50.0, degree_F</pre>
             <tr>
                 <td class="first_col">group_distance</td>
                 <td>windrun</td>
-                <td>mile<br/> km
-                </td>
+                <td>mile<br/> km</td>
                 <td>mile</td>
                 <td>km</td>
                 <td>km</td>
@@ -6894,6 +6964,14 @@ growing_base = 50.0, degree_F</pre>
                 <td>watt_hour</td>
                 <td>watt_hour</td>
                 <td>watt_hour</td>
+            </tr>
+            <tr>
+                <td class="first_col">group_energy2</td>
+                <td></td>
+                <td>watt_second</td>
+                <td>watt_second</td>
+                <td>watt_second</td>
+                <td>watt_second</td>
             </tr>
             <tr>
                 <td class="first_col">group_interval</td>

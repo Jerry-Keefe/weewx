@@ -23,15 +23,7 @@ import six
 from six.moves import input
 
 # For backwards compatibility:
-from weeutil import config, log
-search_up        = config.search_up
-accumulateLeaves = config.accumulateLeaves
-merge_config     = config.merge_config
-patch_config     = config.patch_config
-comment_scalar   = config.comment_scalar
-conditional_merge= config.conditional_merge
-log_traceback    = log.log_traceback
-
+from weeutil.config import accumulateLeaves, search_up
 
 def convertToFloat(seq):
     """Convert a sequence with strings to floats, honoring 'Nones'"""
@@ -397,7 +389,9 @@ def archiveHoursAgoSpan(time_ts, hours_ago=0, grace=1):
 def archiveSpanSpan(time_ts, time_delta=0, hour_delta=0, day_delta=0, week_delta=0, month_delta=0, year_delta=0):
     """ Returns a TimeSpan for the last xxx seconds where xxx equals
         time_delta sec + hour_delta hours + day_delta days + week_delta weeks + month_delta months + year_delta years
-        Note: For month_delta, 1 month = 30 days, For year_delta, 1 year = 365 days
+
+        NOTE: Use of month_delta and year_delta is deprecated.
+        See issue #436 (https://github.com/weewx/weewx/issues/436)
     
     Example:
     >>> os.environ['TZ'] = 'Australia/Brisbane'
@@ -859,7 +853,7 @@ def genYearSpans(start_ts, stop_ts):
 
     if (_stop_dt.month, _stop_dt.day, _stop_dt.hour,
         _stop_dt.minute, _stop_dt.second) == (1, 1, 0, 0, 0):
-            _stop_year -= 1
+        _stop_year -= 1
 
     for year in range(_start_year, _stop_year + 1):
         yield TimeSpan(time.mktime((year, 1, 1, 0, 0, 0, 0, 0, -1)),
@@ -1103,7 +1097,7 @@ def latlon_string(ll, hemi, which, format_list=None):
             hemi[0] if ll >= 0 else hemi[1])
 
 
-def _get_object(module_class):
+def get_object(module_class):
     """Given a string with a module class name, it imports and returns the class."""
     # Split the path into its parts
     parts = module_class.split('.')
@@ -1121,6 +1115,10 @@ def _get_object(module_class):
         raise AttributeError(
             "Module '%s' has no attribute '%s' when searching for '%s'" % (mod.__name__, part, module_class))
     return mod
+
+
+# For backwards compatibility:
+_get_object = get_object
 
 
 class GenWithPeek(object):
@@ -1307,65 +1305,85 @@ def move_with_timestamp(filepath):
     shutil.move(filepath, newpath)
     return newpath
 
+try:
+    # Python 3
+    from collections import ChainMap
 
-class ListOfDicts(dict):
-    """A list of dictionaries, that are searched in order.
-    
-    It assumes only that any inserted dictionaries support a keyed
-    lookup using the syntax obj[key].
-    
-    Example:
+    class ListOfDicts(ChainMap):
+        def extend(self, m):
+            self.maps.append(m)
+        def prepend(self, m):
+            self.maps.insert(0, m)
 
-    # Try an empty dictionary:
-    >>> lod = ListOfDicts()
-    >>> print(lod['b'])
-    Traceback (most recent call last):
-    KeyError: 'b'
-    >>> # Now initialize it with a starting dictionary:
-    >>> lod = ListOfDicts({'a':1, 'b':2, 'c':3})
-    >>> print(lod['b'])
-    2
-    >>> # Look for a non-existent key
-    >>> print(lod['d'])
-    Traceback (most recent call last):
-    KeyError: 'd'
-    >>> # Now extend the dictionary:
-    >>> lod.extend({'d':4, 'e':5})
-    >>> # And try the lookup:
-    >>> print(lod['d'])
-    4
-    >>> # Explicitly add a new key to the dictionary:
-    >>> lod['f'] = 6
-    >>> # Try it:
-    >>> print(lod['f'])
-    6
-    """
+except ImportError:
 
-    def __init__(self, starting_dict=None):
-        if starting_dict:
-            super(ListOfDicts, self).__init__(starting_dict)
-        self.dict_list = []
+    # Python 2. We'll have to supply our own
+    class ListOfDicts(object):
+        """A near clone of ChainMap"""
 
-    def __getitem__(self, key):
-        for this_dict in self.dict_list:
+        def __init__(self, *maps):
+            self.maps = list(maps) or [{}]
+
+        def __missing__(self, key):
+            raise KeyError(key)
+
+        def __getitem__(self, key):
+            for mapping in self.maps:
+                try:
+                    return mapping[key]
+                except KeyError:
+                    pass
+            return self.__missing__(key)
+
+        def get(self, key, default=None):
+            return self[key] if key in self else default
+
+        def __len__(self):
+            return len(set().union(*self.maps))
+
+        def __iter__(self):
+            return iter(set().union(*self.maps))
+
+        def __contains__(self, key):
+            return any(key in m for m in self.maps)
+
+        def __bool__(self):
+            return any(self.maps)
+
+        def __setitem__(self, key, value):
+            """Set a key, value on the first map. """
+            self.maps[0][key] = value
+
+        def __delitem__(self, key):
             try:
-                return this_dict[key]
+                del self.maps[0][key]
             except KeyError:
-                pass
-        return dict.__getitem__(self, key)
+                raise KeyError('Key not found in the first mapping: {!r}'.format(key))
 
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
+        def popitem(self):
+            'Remove and return an item pair from maps[0]. Raise KeyError is maps[0] is empty.'
+            try:
+                return self.maps[0].popitem()
+            except KeyError:
+                raise KeyError('No keys found in the first mapping.')
 
-    def extend(self, new_dict):
-        self.dict_list.append(new_dict)
+        def pop(self, key, *args):
+            'Remove *key* from maps[0] and return its value. Raise KeyError if *key* not in maps[0].'
+            try:
+                return self.maps[0].pop(key, *args)
+            except KeyError:
+                raise KeyError('Key not found in the first mapping: {!r}'.format(key))
+
+        def extend(self, m):
+            self.maps.append(m)
+
+        def prepend(self, m):
+            self.maps.insert(0, m)
 
 
 class KeyDict(dict):
     """A dictionary that returns the key for an unsuccessful lookup."""
+
     def __missing__(self, key):
         return key
 
@@ -1418,6 +1436,7 @@ def deep_copy_path(path, dest_dir):
         shutil.copy(path, d)
         ncopy += 1
     return ncopy
+
 
 if __name__ == '__main__':
     import doctest
