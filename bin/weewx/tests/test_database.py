@@ -20,6 +20,9 @@ import configobj
 import weewx.manager
 import weedb
 import weeutil.weeutil
+import weeutil.logger
+
+weeutil.logger.setup('test_database',{})
 
 archive_sqlite = {'database_name': '/var/tmp/weewx_test/weedb.sdb', 'driver':'weedb.sqlite'}
 archive_mysql  = {'database_name': 'test_weedb', 'user':'weewx1', 'password':'weewx1', 'driver':'weedb.mysql'}
@@ -65,7 +68,7 @@ def genRecords():
         yield _record
 
 
-class TestManager(unittest.TestCase):
+class TestDatabaseDict(unittest.TestCase):
 
     def test_get_database_dict(self):
         config_snippet = '''
@@ -85,7 +88,7 @@ class TestManager(unittest.TestCase):
                                          'driver': 'weedb.sqlite'})
 
 
-class Common(unittest.TestCase):
+class Common(object):
     
     def setUp(self):
         try:
@@ -109,9 +112,10 @@ class Common(unittest.TestCase):
         self.assertRaises(weedb.OperationalError, weewx.manager.Manager.open, self.archive_db_dict)
 
     def test_unitialized_archive(self):
-        _connect = weedb.create(self.archive_db_dict)
-        self.assertRaises(weewx.UninitializedDatabase, weewx.manager.Manager(_connect))
-        
+        weedb.create(self.archive_db_dict)
+        with self.assertRaises(weedb.ProgrammingError):
+            db_manager = weewx.manager.Manager.open(self.archive_db_dict)
+
     def test_create_archive(self):
         archive = weewx.manager.Manager.open_with_create(self.archive_db_dict, schema=archive_schema)
         self.assertEqual(archive.connection.tables(), ['archive'])
@@ -256,14 +260,14 @@ class Common(unittest.TestCase):
         self.assertEqual(rec['outTemp'], -1.0)
 
 
-class TestSqlite(Common):
+class TestSqlite(Common, unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         self.archive_db_dict = archive_sqlite
         super(TestSqlite, self).__init__(*args, **kwargs)
 
 
-class TestMySQL(Common):
+class TestMySQL(Common, unittest.TestCase):
     
     def __init__(self, *args, **kwargs):
         self.archive_db_dict = archive_mysql
@@ -272,16 +276,19 @@ class TestMySQL(Common):
     def setUp(self):
         try:
             import MySQLdb
-        except ImportError as e:
-            raise unittest.case.SkipTest(str(e))
+        except ImportError:
+            try:
+                import pymysql as MySQLdb
+            except ImportError as e:
+                raise unittest.case.SkipTest(e)
         super(TestMySQL, self).setUp()
 
     
 def suite():
-    tests = ['test_no_archive', 'test_create_archive', 
+    tests = ['test_no_archive', 'test_unitialized_archive', 'test_create_archive',
              'test_empty_archive', 'test_add_archive_records', 'test_get_records', 'test_update']
     suite = unittest.TestSuite(list(map(TestSqlite, tests)) + list(map(TestMySQL, tests)))
-    suite.addTest(TestManager('test_get_database_dict'))
+    suite.addTest(TestDatabaseDict('test_get_database_dict'))
     return suite
 
 if __name__ == '__main__':
