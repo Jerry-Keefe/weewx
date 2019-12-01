@@ -245,7 +245,10 @@ class WXXTypes(weewx.xtypes.XType):
             raise weewx.UnknownType(obs_type)
 
     def calc_maxSolarRad(self, key, data, db_manager):
-        algo = self.svc_dict['Algorithms'].get('maxSolarRad', 'RS').lower()
+        try:
+            algo = self.svc_dict['Algorithms']['maxSolarRad'].lower()
+        except KeyError:
+            algo = 'rs'
         altitude_m = weewx.units.convert(self.altitude_vt, 'meter')[0]
         if algo == 'bras':
             val = weewx.wxformulas.solar_rad_Bras(self.latitude, self.longitude, altitude_m,
@@ -509,7 +512,13 @@ class PressureCooker(weewx.xtypes.XType):
 
         # Get the temperature in Fahrenheit from 12 hours ago
         temp_12h_vt = self._get_temperature_12h(record['dateTime'], dbmanager)
-        if temp_12h_vt is not None:
+        if temp_12h_vt is None \
+                or temp_12h_vt[0] is None \
+                or record['outTemp'] is None \
+                or record['barometer'] is None \
+                or record['outHumidity'] is None:
+            pressure = None
+        else:
             # The following requires everything to be in US Customary units.
             # Rather than convert the whole record, just convert what we need:
             record_US = weewx.units.to_US({'usUnits': record['usUnits'],
@@ -527,10 +536,9 @@ class PressureCooker(weewx.xtypes.XType):
                 temp_12h_F[0],
                 record_US['outHumidity']
             )
-            # Convert to target unit system and return
-            return weewx.units.convertStd((pressure, 'inHg', 'group_pressure'), record['usUnits'])
-        else:
-            return ValueTuple(None, None, None)
+
+        # Convert to target unit system and return
+        return weewx.units.convertStd((pressure, 'inHg', 'group_pressure'), record['usUnits'])
 
     def altimeter(self, record):
         """Calculate the observation type 'altimeter'."""
