@@ -23,9 +23,8 @@ it possible to include them in the database schemas.
 The utility wee_reports now loads services, allowing it to use user-supplied
 extensions. Fixes issue #95.
 
-New, more flexible, way of specifying schemas for the daily summaries.
-For the most part, the old way is backwards compatible. See the Upgrading
-Guide for the exception.
+Optional, more flexible, way of specifying schemas for the daily summaries.
+The old way is still supported.
 
 The package MySQL-python, which we used previously, is not available
 for Python 3. Ported  the MySQL code to use the package mysqlclient
@@ -66,7 +65,8 @@ issue #413.
 
 Wunderfixer has been ported to the new WU API. This API requires an API key,
 which you can get from the WU. Put it in weewx.conf. Unfortunately, WU is
-very unreliable whether reposts "stick". Fixes issues #414 and #445.
+very unreliable whether reposts "stick". Thanks to user Leon Shaner!
+Fixes issues #414 and #445.
 
 Wee_import can now import Weather Display monthly log files.
 
@@ -183,6 +183,10 @@ the database manager. See commit 459ccb1.
 
 Sending a SIGTERM signal to weewxd now causes it to exit with status
 128 + signal#. PR #442. Thanks to user sshambar!
+
+Fixed bug that could cause WMR200 packets with a timestamp between startup
+and the minimum interval to have an interval length of zero. Fixes
+issue #375 (again!).
 
 
 3.9.1 02/06/2019
@@ -1648,14 +1652,14 @@ Numerous fixes to the WMR200 driver. Now has a "watchdog" thread.
 All of the device drivers have now been put in their own package
 'weewx.drivers' to keep them together. Many have also had name changes
 to make them more consistent:
-	OLD                        NEW
-	VantagePro.py (Vantage)    vantage.py (Vantage)
-	WMR918.py     (WMR-918)    wmr9x8.py  (WMR9x8)
-	wmrx.py       (WMR-USB)    wmr100.py  (WMR100)
-	
-	new (experimental) drivers:
-	wmr200.py (WMR200)
-	ws28xx.py (WS28xx)
+    OLD                        NEW
+    VantagePro.py (Vantage)    vantage.py (Vantage)
+    WMR918.py     (WMR-918)    wmr9x8.py  (WMR9x8)
+    wmrx.py       (WMR-USB)    wmr100.py  (WMR100)
+
+    new (experimental) drivers:
+    wmr200.py (WMR200)
+    ws28xx.py (WS28xx)
 
 The interface to the device driver "loader" function has changed slightly. It
 now takes a second parameter, "engine". Details are in the Upgrading doc.
